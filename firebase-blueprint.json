@@ -1,0 +1,47 @@
+{
+  "entities": {
+    "Application": {
+      "title": "School Application",
+      "description": "A learner's application for admission to Topstar Legacy Learning Centre.",
+      "type": "object",
+      "properties": {
+        "learnerName": { "type": "string", "description": "Full name of the learner" },
+        "dateOfBirth": { "type": "string", "format": "date", "description": "Learner's date of birth" },
+        "gender": { "type": "string", "enum": ["Male", "Female"], "description": "Learner's gender" },
+        "gradeApplied": { "type": "string", "description": "Grade the learner is applying for" },
+        "parentName": { "type": "string", "description": "Full name of the parent/guardian" },
+        "parentPhone": { "type": "string", "description": "Parent's contact phone number" },
+        "parentEmail": { "type": "string", "format": "email", "description": "Parent's email address" },
+        "address": { "type": "string", "description": "Residential address" },
+        "medicalConditions": { "type": "string", "description": "Any medical conditions or allergies" },
+        "previousSchool": { "type": "string", "description": "Name of the previous school attended" },
+        "status": { "type": "string", "enum": ["pending", "reviewed", "accepted", "rejected"], "description": "Current status of the application" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the application was submitted" },
+        "submittedBy": { "type": "string", "description": "UID of the user who submitted (if logged in)" }
+      },
+      "required": ["learnerName", "dateOfBirth", "gender", "gradeApplied", "parentName", "parentPhone", "parentEmail"]
+    },
+    "User": {
+      "title": "User Profile",
+      "description": "User profile information including roles.",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string", "description": "User's display name" },
+        "email": { "type": "string", "format": "email", "description": "User's email address" },
+        "role": { "type": "string", "enum": ["admin", "parent"], "description": "User's role in the system" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the user profile was created" }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/applications/{applicationId}": {
+      "schema": "Application",
+      "description": "Collection of learner applications."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user profiles."
+    }
+  }
+}

@@ -1,0 +1,124 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: applications
+    // Document ID: auto-generated
+    // Fields:
+    //   - learnerName: string (required, < 100 chars)
+    //   - dateOfBirth: string (required, ISO 8601)
+    //   - gender: string (required, Male/Female)
+    //   - gradeApplied: string (required, < 50 chars)
+    //   - parentName: string (required, < 100 chars)
+    //   - parentPhone: string (required, < 30 chars)
+    //   - parentEmail: string (required, email format)
+    //   - address: string (optional, < 500 chars)
+    //   - medicalConditions: string (optional, < 1000 chars)
+    //   - previousSchool: string (optional, < 200 chars)
+    //   - status: string (required, pending/reviewed/accepted/rejected)
+    //   - createdAt: timestamp (required)
+    //   - submittedBy: string (optional, UID)
+    //
+    // Collection: users
+    // Document ID: userId (UID)
+    // Fields:
+    //   - displayName: string (optional, < 100 chars)
+    //   - email: string (required, email format)
+    //   - role: string (required, admin/parent)
+    //   - createdAt: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "oretedev@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}.*$");
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidApplication(data) {
+      return hasRequiredFields(['learnerName', 'dateOfBirth', 'gender', 'gradeApplied', 'parentName', 'parentPhone', 'parentEmail', 'status', 'createdAt']) &&
+             data.learnerName is string && data.learnerName.size() > 0 && data.learnerName.size() < 100 &&
+             isValidDateString(data.dateOfBirth) &&
+             data.gender in ['Male', 'Female'] &&
+             data.gradeApplied is string && data.gradeApplied.size() > 0 && data.gradeApplied.size() < 50 &&
+             data.parentName is string && data.parentName.size() > 0 && data.parentName.size() < 100 &&
+             data.parentPhone is string && data.parentPhone.size() > 0 && data.parentPhone.size() < 30 &&
+             isValidEmail(data.parentEmail) &&
+             data.status in ['pending', 'reviewed', 'accepted', 'rejected'] &&
+             data.createdAt is timestamp &&
+             (!('address' in data) || (data.address is string && data.address.size() < 500)) &&
+             (!('medicalConditions' in data) || (data.medicalConditions is string && data.medicalConditions.size() < 1000)) &&
+             (!('previousSchool' in data) || (data.previousSchool is string && data.previousSchool.size() < 200)) &&
+             (!('submittedBy' in data) || (data.submittedBy is string || data.submittedBy == null));
+    }
+
+    function isValidUser(data) {
+      return hasRequiredFields(['email', 'role', 'createdAt']) &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'parent'] &&
+             data.createdAt is timestamp &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'parent';
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /applications/{applicationId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.submittedBy == request.auth.uid);
+      allow create: if isValidApplication(request.resource.data) && 
+                      (!('submittedBy' in request.resource.data) || request.resource.data.submittedBy == null || request.resource.data.submittedBy == request.auth.uid) &&
+                      request.resource.data.status == 'pending';
+      allow update: if isAdmin() && isValidApplication(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
